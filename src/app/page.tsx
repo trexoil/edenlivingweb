@@ -1,103 +1,130 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 export default function Home() {
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Animated background gradient */}
+      <div className="fixed inset-0 -z-10 bg-gradient-to-br from-background via-primary/5 to-accent/5 animate-gradient-shift bg-400%" />
+      {/* Header */}
+      <header className="bg-background/80 backdrop-blur-md border-b border-border/50 sticky top-0 z-50">
+        <div className="container mx-auto px-8 py-6 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-primary-foreground font-bold text-3xl">E</span>
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold text-foreground tracking-tight">Eden Living</h1>
+              <p className="text-muted-foreground text-sm">A New Standard of Care</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <Button asChild size="lg" variant="premium">
+              <Link href="/login">Resident Portal</Link>
+            </Button>
+          </div>
+        </div>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* Hero Section */}
+      <main className="container mx-auto px-8 py-24 md:py-32 text-center">
+        <div className="max-w-5xl mx-auto animate-in">
+          <h2 className="text-5xl md:text-7xl font-extrabold text-foreground mb-8 leading-tight tracking-tighter animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            Welcome to a Life of
+            <span className="text-primary block mt-4 animate-pulse">Distinction & Care</span>
+          </h2>
+          <p className="text-xl md:text-2xl text-muted-foreground mb-16 max-w-3xl mx-auto leading-relaxed font-light">
+            Experience premium senior living, thoughtfully designed for comfort, community, and peace of mind.
+          </p>
+          
+          {/* Feature Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
+            <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-sm hover:shadow-xl hover:scale-105 transition-all duration-300 group cursor-pointer animate-gentle-float" style={{ animationDelay: '0s' }}>
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:bg-primary/20 transition-colors duration-300">
+                  <span className="text-3xl group-hover:scale-110 transition-transform duration-300">🏡</span>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors duration-300">Luxury Residences</h3>
+                <p className="text-sm text-muted-foreground mt-2 group-hover:text-foreground transition-colors duration-300">Elegantly crafted homes</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-sm hover:shadow-xl hover:scale-105 transition-all duration-300 group cursor-pointer animate-gentle-float" style={{ animationDelay: '0.5s' }}>
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:bg-accent/20 transition-colors duration-300">
+                  <span className="text-3xl group-hover:scale-110 transition-transform duration-300">🍴</span>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground group-hover:text-accent transition-colors duration-300">Gourmet Dining</h3>
+                <p className="text-sm text-muted-foreground mt-2 group-hover:text-foreground transition-colors duration-300">Culinary excellence daily</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-sm hover:shadow-xl hover:scale-105 transition-all duration-300 group cursor-pointer animate-gentle-float" style={{ animationDelay: '1s' }}>
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:bg-primary/20 transition-colors duration-300">
+                  <span className="text-3xl group-hover:scale-110 transition-transform duration-300">💎</span>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground group-hover:text-primary transition-colors duration-300">Concierge Care</h3>
+                <p className="text-sm text-muted-foreground mt-2 group-hover:text-foreground transition-colors duration-300">Personalized support 24/7</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="border-0 shadow-lg bg-background/80 backdrop-blur-sm hover:shadow-xl hover:scale-105 transition-all duration-300 group cursor-pointer animate-gentle-float" style={{ animationDelay: '1.5s' }}>
+              <CardContent className="p-8 text-center">
+                <div className="w-16 h-16 bg-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:bg-accent/20 transition-colors duration-300">
+                  <span className="text-3xl group-hover:scale-110 transition-transform duration-300">🌟</span>
+                </div>
+                <h3 className="text-lg font-semibold text-foreground group-hover:text-accent transition-colors duration-300">Vibrant Community</h3>
+                <p className="text-sm text-muted-foreground mt-2 group-hover:text-foreground transition-colors duration-300">Engaging social life</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
+            <Button size="lg" variant="premium" asChild className="text-lg px-10 py-4 shadow-xl hover:scale-105 transition-transform duration-300 animate-pulse-slow">
+              <Link href="/login">Discover Eden Living</Link>
+            </Button>
+            <Button size="lg" variant="outline" className="text-lg px-10 py-4 border-2 shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300">
+              Schedule a Visit
+            </Button>
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+
+      {/* Stats Section */}
+      <section className="bg-muted/20 py-20 border-y border-border/50">
+        <div className="container mx-auto px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div className="space-y-2">
+              <div className="text-5xl font-bold text-primary">98%</div>
+              <div className="text-lg text-muted-foreground font-medium">Resident Satisfaction</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-5xl font-bold text-accent">24/7</div>
+              <div className="text-lg text-muted-foreground font-medium">Dedicated Support</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-5xl font-bold text-primary">50+</div>
+              <div className="text-lg text-muted-foreground font-medium">Weekly Activities</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-5xl font-bold text-accent">5★</div>
+              <div className="text-lg text-muted-foreground font-medium">Premium Service</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-muted text-foreground py-16">
+        <div className="container mx-auto px-8 text-center">
+          <p className="text-2xl mb-6 font-light">Embrace a life of comfort and distinction.</p>
+          <p className="text-lg opacity-80">© 2025 Eden Living. All rights reserved.</p>
+        </div>
       </footer>
     </div>
-  );
+  )
 }
