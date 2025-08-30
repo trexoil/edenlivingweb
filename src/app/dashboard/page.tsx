@@ -1,16 +1,44 @@
 'use client'
 
-import { useState } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
+import { useState, useEffect } from 'react'
+import { useSimpleAuth } from '@/contexts/SimpleAuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { AlertDialog } from '@/components/ui/alert-dialog'
 import { useRouter } from 'next/navigation'
+import { useTicketCount } from '@/hooks/useTicketCount'
+import AnnouncementPopup from '@/components/announcements/AnnouncementPopup'
+import { Announcement } from '@/types/database'
 
 export default function Dashboard() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, isLoading } = useSimpleAuth()
   const router = useRouter()
   const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications] = useState([
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const { counts: ticketCounts } = useTicketCount()
+
+  // Announcement popup state
+  const [popupAnnouncement, setPopupAnnouncement] = useState<Announcement | null>(null)
+  const [showAnnouncementPopup, setShowAnnouncementPopup] = useState(false)
+  const [shownAnnouncementIds, setShownAnnouncementIds] = useState<Set<string>>(new Set())
+  const [popupsEnabled, setPopupsEnabled] = useState(true)
+
+  // Load popup preference and shown announcements from localStorage
+  useEffect(() => {
+    const savedPreference = localStorage.getItem('announcement-popups-enabled')
+    if (savedPreference !== null) {
+      setPopupsEnabled(JSON.parse(savedPreference))
+    }
+
+    const savedShownIds = localStorage.getItem('shown-announcement-ids')
+    if (savedShownIds) {
+      setShownAnnouncementIds(new Set(JSON.parse(savedShownIds)))
+    }
+  }, [])
+
+  // Move all useState hooks to the top before any conditional returns
+  const [notifications, setNotifications] = useState([
     {
       id: 1,
       title: 'Service Request Update',
@@ -37,21 +65,161 @@ export default function Dashboard() {
     }
   ])
 
+  // Debug logging
+  console.log('Dashboard render:', { user: user?.email, role: user?.role, isLoading })
+
+  // Redirect users based on their role
+  useEffect(() => {
+    console.log('Dashboard useEffect - role redirect check:', { user: user?.email, role: user?.role, isLoading })
+    if (user && !isLoading) {
+      if (user.role === 'superadmin') {
+        console.log('Redirecting superadmin to /superadmin')
+        router.push('/superadmin')
+        return
+      }
+      if (user.role === 'site_admin') {
+        console.log('Redirecting site_admin to /siteadmin')
+        router.push('/siteadmin')
+        return
+      }
+      console.log('User staying on dashboard:', user.role)
+      // Regular users (resident, admin, staff) stay on dashboard
+    }
+  }, [user, router, isLoading])
+
+  // Fetch recent announcements for notifications
+  useEffect(() => {
+    const fetchRecentAnnouncements = async () => {
+      try {
+        const response = await fetch('/api/announcements')
+        const data = await response.json()
+
+        if (response.ok && data.announcements) {
+          // Filter announcements from last 48 hours
+          const recentAnnouncements = data.announcements.filter((announcement: Announcement) => {
+            const publishedDate = new Date(announcement.published_at || announcement.created_at)
+            const now = new Date()
+            const diffInHours = (now.getTime() - publishedDate.getTime()) / (1000 * 60 * 60)
+            return diffInHours < 48
+          })
+
+          // Convert to notification format
+          const announcementNotifications = recentAnnouncements.map((announcement: Announcement) => ({
+            id: `announcement-${announcement.id}`,
+            title: 'New Announcement',
+            message: announcement.title,
+            type: 'announcement',
+            time: formatTimeAgo(announcement.published_at || announcement.created_at),
+            read: false,
+            announcementId: announcement.id
+          }))
+
+          // Add to existing notifications
+          setNotifications(prev => [...announcementNotifications, ...prev])
+
+          // Show popup for unread announcements
+          const unreadAnnouncements = recentAnnouncements.filter((announcement: Announcement) => {
+            const diffInHours = (new Date().getTime() - new Date(announcement.published_at || announcement.created_at).getTime()) / (1000 * 60 * 60)
+            return (
+              diffInHours < 24 && // Only show popups for announcements from last 24 hours
+              !shownAnnouncementIds.has(announcement.id)
+            )
+          })
+
+          if (unreadAnnouncements.length > 0 && !showAnnouncementPopup && popupsEnabled) {
+            // Show the most recent unread announcement first
+            const announcementToShow = unreadAnnouncements[0]
+            setPopupAnnouncement(announcementToShow)
+            setShowAnnouncementPopup(true)
+
+            // Update shown IDs and save to localStorage
+            const newShownIds = new Set([...shownAnnouncementIds, announcementToShow.id])
+            setShownAnnouncementIds(newShownIds)
+            localStorage.setItem('shown-announcement-ids', JSON.stringify([...newShownIds]))
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching announcements for notifications:', error)
+      }
+    }
+
+    if (user) {
+      fetchRecentAnnouncements()
+    }
+  }, [user])
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+    if (diffInHours < 1) {
+      return 'Just now'
+    } else if (diffInHours < 24) {
+      return `${Math.floor(diffInHours)}h ago`
+    } else {
+      return `${Math.floor(diffInHours / 24)}d ago`
+    }
+  }
+
+  const togglePopupPreference = () => {
+    const newPreference = !popupsEnabled
+    setPopupsEnabled(newPreference)
+    localStorage.setItem('announcement-popups-enabled', JSON.stringify(newPreference))
+    if (!newPreference) {
+      // Close current popup if disabling
+      setShowAnnouncementPopup(false)
+      setPopupAnnouncement(null)
+    }
+  }
+
+  const markAnnouncementAsRead = (announcementId: string) => {
+    const newShownIds = new Set([...shownAnnouncementIds, announcementId])
+    setShownAnnouncementIds(newShownIds)
+    localStorage.setItem('shown-announcement-ids', JSON.stringify([...newShownIds]))
+  }
+
   const unreadCount = notifications.filter(n => !n.read).length
 
   const handleSignOut = async () => {
-    if (confirm('Are you sure you want to sign out?')) {
-      try {
-        await signOut()
-        router.push('/login')
-      } catch (error) {
-        console.error('Error signing out:', error)
-      }
+    setShowLogoutConfirm(true)
+  }
+
+  const confirmSignOut = async () => {
+    try {
+      await signOut()
+      router.push('/login')
+    } catch (error) {
+      console.error('Error signing out:', error)
     }
   }
 
   const getUserInitials = (firstName: string, lastName: string) => {
     return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase()
+  }
+
+  // Show loading state while auth is initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show message if no user (shouldn't happen due to auth protection)
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">Please sign in to access your dashboard.</p>
+          <Button onClick={() => router.push('/login')}>Sign In</Button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -103,11 +271,17 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       notifications.map((notification) => (
-                        <div 
-                          key={notification.id} 
+                        <div
+                          key={notification.id}
                           className={`p-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 cursor-pointer ${
                             !notification.read ? 'bg-blue-50' : ''
                           }`}
+                          onClick={() => {
+                            if (notification.type === 'announcement' && notification.announcementId) {
+                              router.push(`/dashboard/announcements/${notification.announcementId}`)
+                              setShowNotifications(false)
+                            }
+                          }}
                         >
                           <div className="flex justify-between items-start mb-1">
                             <h4 className="font-medium text-gray-900">{notification.title}</h4>
@@ -163,7 +337,7 @@ export default function Dashboard() {
           <div className="bg-gradient-to-r from-primary/10 to-accent/10 rounded-2xl p-8 mb-8">
             <h2 className="text-4xl font-bold text-gray-900 mb-3">Welcome back, {user?.first_name}! 👋</h2>
             <p className="text-xl text-gray-600 max-w-2xl">
-              HereHere'sapos;s everything you need to manage your Eden Living experience in one place.
+              Here&apos;s everything you need to manage your Eden Living experience in one place.
             </p>
           </div>
         </div>
@@ -240,7 +414,11 @@ export default function Dashboard() {
               <p className="text-sm text-gray-600">Latest community updates</p>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-800 transition-colors">
+              <Button
+                variant="outline"
+                className="w-full border-orange-300 text-orange-700 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-800 transition-colors"
+                onClick={() => router.push('/dashboard/announcements')}
+              >
                 View Updates
               </Button>
             </CardContent>
@@ -259,7 +437,11 @@ export default function Dashboard() {
               <p className="text-sm text-gray-600">Upcoming events & activities</p>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400 hover:text-green-800 transition-colors">
+              <Button
+                variant="outline"
+                className="w-full border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400 hover:text-green-800 transition-colors"
+                onClick={() => router.push('/dashboard/calendar')}
+              >
                 View Events
               </Button>
             </CardContent>
@@ -278,7 +460,11 @@ export default function Dashboard() {
               <p className="text-sm text-gray-600">Payment history & statements</p>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" className="w-full border-purple-300 text-purple-700 hover:bg-purple-50 hover:border-purple-400 hover:text-purple-800 transition-colors">
+              <Button
+                variant="outline"
+                className="w-full border-purple-300 text-purple-700 hover:bg-purple-50 hover:border-purple-400 hover:text-purple-800 transition-colors"
+                onClick={() => router.push('/dashboard/billing')}
+              >
                 View Statements
               </Button>
             </CardContent>
@@ -321,6 +507,35 @@ export default function Dashboard() {
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+                  <span className="text-white text-xl">🎧</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg font-bold text-gray-900">
+                    Help & Support
+                  </CardTitle>
+                  {(ticketCounts.open + ticketCounts.in_progress) > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {ticketCounts.open + ticketCounts.in_progress}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-gray-600">Get help from our support team</p>
+            </CardHeader>
+            <CardContent>
+              <Button
+                className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white shadow-md hover:shadow-lg transition-all"
+                onClick={() => router.push('/dashboard/helpdesk')}
+              >
+                Get Support
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </main>
 
@@ -332,6 +547,33 @@ export default function Dashboard() {
           </p>
         </div>
       </footer>
+
+      <AlertDialog
+        open={showLogoutConfirm}
+        onOpenChange={setShowLogoutConfirm}
+        title="Sign Out"
+        description="Are you sure you want to sign out?"
+        onConfirm={confirmSignOut}
+        confirmText="Sign Out"
+        cancelText="Cancel"
+        variant="destructive"
+      />
+
+      {/* Announcement Popup */}
+      {popupAnnouncement && (
+        <AnnouncementPopup
+          announcement={popupAnnouncement}
+          isOpen={showAnnouncementPopup}
+          onClose={() => {
+            setShowAnnouncementPopup(false)
+            setPopupAnnouncement(null)
+          }}
+          onMarkAsRead={() => {
+            markAnnouncementAsRead(popupAnnouncement.id)
+          }}
+          onDisablePopups={togglePopupPreference}
+        />
+      )}
     </div>
   )
 }

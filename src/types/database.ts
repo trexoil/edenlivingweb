@@ -3,8 +3,9 @@ export interface Profile {
   email: string
   first_name: string
   last_name: string
-  role: 'resident' | 'admin' | 'staff'
-  unit_number: string
+  role: 'resident' | 'admin' | 'staff' | 'site_admin' | 'superadmin'
+  unit_number?: string
+  site_id?: string
   phone_number?: string
   emergency_contact?: string
   dietary_preferences?: string
@@ -53,17 +54,21 @@ export interface ServiceRequest {
 
 export interface Announcement {
   id: string
+  site_id: string
   title: string
   content: string
   author_id: string
   priority: 'normal' | 'important' | 'urgent'
   target_audience: 'all' | 'residents' | 'staff'
+  is_published: boolean
+  published_at?: string
   created_at: string
   updated_at: string
 }
 
 export interface Event {
   id: string
+  site_id: string
   title: string
   description: string
   event_date: string
@@ -154,4 +159,39 @@ export interface VisitorPass {
   qr_code: string
   status: 'pending' | 'approved' | 'used' | 'expired'
   created_at: string
+}
+
+export type HelpDeskTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type HelpDeskTicketPriority = 'low' | 'medium' | 'high' | 'urgent'
+export type HelpDeskTicketCategory = 'maintenance' | 'technical' | 'general' | 'complaint' | 'suggestion'
+
+export interface HelpDeskTicket {
+  id: string
+  resident_id: string
+  site_id: string
+  title: string
+  description: string
+  category: HelpDeskTicketCategory
+  priority: HelpDeskTicketPriority
+  status: HelpDeskTicketStatus
+  assigned_to?: string
+  created_at: string
+  updated_at: string
+  resolved_at?: string
+
+  // Joined data (when fetched with relations)
+  resident?: Profile
+  assigned_staff?: Profile
+}
+
+export interface HelpDeskResponse {
+  id: string
+  ticket_id: string
+  responder_id: string
+  message: string
+  is_internal: boolean
+  created_at: string
+
+  // Joined data
+  responder?: Profile
 }

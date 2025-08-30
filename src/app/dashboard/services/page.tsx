@@ -1,13 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSimpleAuth } from '@/contexts/SimpleAuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
+import { ServiceRequest } from '@/types/database'
 
 export default function ServicesPage() {
   const router = useRouter()
@@ -32,12 +36,53 @@ export default function ServicesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // In a real app, this would submit to Supabase
-    console.log('Submitting service request:', { type: serviceType, ...formData })
-    
-    // Show success message and redirect
-    alert('Service request submitted successfully!')
-    router.push('/dashboard')
+
+    if (!serviceType || !formData.title || !formData.description) {
+      toast.error('Please fill in all required fields')
+      return
+    }
+
+    try {
+      console.log('Submitting service request:', { type: serviceType, ...formData })
+
+      const response = await fetch('/api/service-requests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: serviceType,
+          title: formData.title,
+          description: formData.description,
+          priority: formData.priority || 'medium',
+          scheduled_date: formData.scheduledDate || null,
+          meal_preferences: serviceType === 'meal' ? formData.specialInstructions : null,
+          laundry_instructions: serviceType === 'laundry' ? formData.specialInstructions : null,
+          housekeeping_details: serviceType === 'housekeeping' ? formData.specialInstructions : null,
+          transportation_details: serviceType === 'transportation' ? formData.specialInstructions : null,
+          maintenance_location: serviceType === 'maintenance' ? formData.location : null,
+          care_requirements: serviceType === 'home_care' ? formData.specialInstructions : null,
+          medical_notes: serviceType === 'medical' ? formData.specialInstructions : null,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(errorData.error || `HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log('Service request created:', data)
+
+      // Show success message and redirect
+      toast.success('Service request submitted successfully!', {
+        description: `Your ${serviceType} request has been sent to the staff team.`
+      })
+      router.push('/dashboard')
+    } catch (error) {
+      console.error('Error submitting service request:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to submit service request')
+    }
   }
 
   const handleInputChange = (field: keyof typeof formData, value: string) => {

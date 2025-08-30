@@ -7,14 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useAuth } from '@/contexts/AuthContext'
+import { useSimpleAuth } from '@/contexts/SimpleAuthContext'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const { signIn } = useAuth()
+  const { signIn } = useSimpleAuth()
   const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -24,10 +24,13 @@ export default function LoginPage() {
 
     try {
       await signIn(email, password)
-      router.push('/dashboard')
+      // The auth state change will be handled by the auth context
+      // and the user will be redirected automatically
     } catch (err: unknown) {
+      console.error('Login error:', err)
       setError(err instanceof Error ? err.message : 'An error occurred during login')
     } finally {
+      // Always clear loading state, even if redirect happens
       setIsLoading(false)
     }
   }
@@ -93,16 +96,19 @@ export default function LoginPage() {
           </form>
           
           <div className="text-center text-base text-muted-foreground">
-            DonDon'tapos;t have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/register" className="text-primary hover:underline font-medium">
-              Contact us to join
+              Create an account
             </Link>
           </div>
           
           <div className="pt-4 border-t border-border">
-            <p className="text-center text-sm text-muted-foreground">
-              For demonstration, use: <span className="font-mono bg-muted px-2 py-1 rounded">admin@eden.com</span> / <span className="font-mono bg-muted px-2 py-1 rounded">password123</span>
+            <p className="text-center text-sm text-muted-foreground mb-2">
+              For demonstration, use:
             </p>
+            <div className="text-center text-xs text-muted-foreground">
+              <div><span className="font-mono bg-muted px-2 py-1 rounded">superadmin@eden.com</span> / <span className="font-mono bg-muted px-2 py-1 rounded">password123</span></div>
+            </div>
           </div>
         </CardContent>
       </Card>
