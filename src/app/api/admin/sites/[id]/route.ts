@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // Await params in Next.js 15
+    const { id } = await params
+
     // Check for superadmin authorization
     const authHeader = request.headers.get('authorization')
     const cookies = request.headers.get('cookie')
-    
-    const isSuperadmin = cookies?.includes('superadmin_session') || 
+
+    const isSuperadmin = cookies?.includes('superadmin_session') ||
                         authHeader?.includes('superadmin') ||
                         request.headers.get('x-superadmin') === 'true'
 
@@ -46,7 +49,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         total_bedrooms: total_units || total_bedrooms || 0,
         available_services: available_services || []
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 
@@ -68,13 +71,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // Await params in Next.js 15
+    const { id } = await params
+
     // Check for superadmin authorization
     const authHeader = request.headers.get('authorization')
     const cookies = request.headers.get('cookie')
-    
-    const isSuperadmin = cookies?.includes('superadmin_session') || 
+
+    const isSuperadmin = cookies?.includes('superadmin_session') ||
                         authHeader?.includes('superadmin') ||
                         request.headers.get('x-superadmin') === 'true'
 
@@ -96,7 +102,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const { error: deleteError } = await supabase
       .from('sites')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (deleteError) {
       console.error('Error deleting site:', deleteError)

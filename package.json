@@ -42,5 +42,11 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.7",
     "typescript": "^5"
+  },
+  "overrides": {
+    "next-themes": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   }
 }
