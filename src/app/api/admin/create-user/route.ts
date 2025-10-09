@@ -32,7 +32,8 @@ export async function POST(request: NextRequest) {
       unit_number,
       phone_number,
       emergency_contact,
-      dietary_preferences
+      dietary_preferences,
+      department
     } = body
 
     // Validate required fields
@@ -86,6 +87,9 @@ export async function POST(request: NextRequest) {
     }
     if (dietary_preferences) {
       profileUpdates.dietary_preferences = dietary_preferences
+    }
+    if (department) {
+      profileUpdates.department = department
     }
 
     if (Object.keys(profileUpdates).length > 0) {

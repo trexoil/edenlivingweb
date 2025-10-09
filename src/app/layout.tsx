@@ -4,7 +4,7 @@ import "./globals.css";
 import { SimpleAuthProvider } from "@/contexts/SimpleAuthContext";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import AuthDebug from "@/components/debug/AuthDebug";
+import ClientProviders from "@/components/providers/ClientProviders";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -14,6 +14,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Eden Active Living",
   description: "Your digital companion for modern retirement living",
+  manifest: "/manifest.json",
+  themeColor: "#0ea5e9",
 };
 
 export default function RootLayout({
@@ -27,7 +29,7 @@ export default function RootLayout({
         <ThemeProvider>
           <SimpleAuthProvider>
             {children}
-            <AuthDebug />
+            <ClientProviders />
           </SimpleAuthProvider>
           <Toaster />
         </ThemeProvider>

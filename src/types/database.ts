@@ -9,6 +9,14 @@ export interface Profile {
   phone_number?: string
   emergency_contact?: string
   dietary_preferences?: string
+  credit_limit?: number          // RM credit limit (default: 2000)
+  current_balance?: number       // Current outstanding balance
+  department?: string            // For staff: which department they belong to
+  notification_preferences?: {
+    email: boolean
+    in_app: boolean
+    push: boolean
+  }
   created_at: string
   updated_at: string
 }
@@ -23,9 +31,15 @@ export type ServiceRequestType =
   | 'medical'
 
 export type ServiceRequestStatus = 
-  | 'pending'
-  | 'in_progress'
-  | 'completed'
+  | 'pending'           // Initial submission
+  | 'auto_approved'     // Approved by system (credit available)
+  | 'manual_review'     // Requires admin review (insufficient credit)
+  | 'assigned'          // Assigned to department
+  | 'processing'        // Department acknowledged
+  | 'in_progress'       // Staff started service (QR scanned)
+  | 'awaiting_completion' // Service ongoing
+  | 'completed'         // Service finished (QR confirmed)
+  | 'invoiced'          // Invoice generated
   | 'cancelled'
 
 export interface ServiceRequest {
@@ -41,6 +55,19 @@ export interface ServiceRequest {
   assigned_to?: string
   created_at: string
   updated_at: string
+  
+  // Enhanced workflow fields
+  department_assigned?: string      // Which department handles this
+  assigned_staff_id?: string        // Specific staff member
+  estimated_cost?: number           // Cost estimate
+  actual_cost?: number              // Final cost
+  auto_approved?: boolean           // Was it auto-approved?
+  approval_reason?: string          // Why approved/rejected
+  start_qr_code?: string           // QR for starting service
+  completion_qr_code?: string       // QR for completing service
+  qr_start_scanned_at?: string     // When service started
+  qr_completion_scanned_at?: string // When service completed
+  invoice_id?: string              // Generated invoice reference
   
   // Type-specific fields
   meal_preferences?: string
@@ -148,6 +175,62 @@ export interface VehicleRegistration {
   created_at: string
 }
 
+// Restaurant module types
+export interface Menu {
+  id: string
+  site_id?: string
+  name: string
+  description?: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface MenuItem {
+  id: string
+  menu_id: string
+  name: string
+  description?: string
+  price: number
+  category?: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Order {
+  id: string
+  resident_id: string
+  site_id?: string
+  status: 'submitted' | 'processing' | 'ready' | 'delivering' | 'completed' | 'cancelled'
+  department_assigned: string
+  total: number
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface OrderItem {
+  id: string
+  order_id: string
+  item_id: string
+  qty: number
+  price: number
+  created_at: string
+}
+
+// Push notifications
+export interface PushToken {
+  id: string
+  token: string
+  user_id: string
+  department?: string
+  platform: 'web' | 'android' | 'ios'
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface VisitorPass {
   id: string
   resident_id: string
@@ -194,4 +277,59 @@ export interface HelpDeskResponse {
 
   // Joined data
   responder?: Profile
+}
+
+// Enhanced workflow interfaces
+export interface Department {
+  id: string
+  name: string
+  site_id: string
+  service_types: ServiceRequestType[] // Which services they handle
+  email_notifications: string[]       // Department email addresses
+  manager_id?: string                 // Department manager
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface ServiceQRCode {
+  id: string
+  service_request_id: string
+  qr_type: 'start' | 'completion'
+  qr_code: string                    // Unique QR code
+  expires_at: string                 // Expiration time
+  scanned_at?: string               // When scanned
+  scanned_by?: string               // Staff who scanned
+  is_used: boolean
+  created_at: string
+}
+
+export interface ServiceInvoice {
+  id: string
+  service_request_id: string
+  resident_id: string
+  site_id: string
+  amount: number
+  tax_amount?: number
+  total_amount: number
+  description: string
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled'
+  created_by: string               // Admin who generated
+  sent_at?: string
+  due_date: string
+  created_at: string
+  updated_at: string
+}
+
+export interface NotificationLog {
+  id: string
+  recipient_id: string
+  recipient_type: 'admin' | 'staff' | 'resident'
+  notification_type: 'email' | 'in_app' | 'push'
+  subject: string
+  message: string
+  related_service_request_id?: string
+  sent_at: string
+  read_at?: string
+  status: 'pending' | 'sent' | 'delivered' | 'failed'
 }

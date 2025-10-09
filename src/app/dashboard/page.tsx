@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { useTicketCount } from '@/hooks/useTicketCount'
 import AnnouncementPopup from '@/components/announcements/AnnouncementPopup'
 import { Announcement } from '@/types/database'
+import StaffDashboard from '@/components/staff/StaffDashboard'
 
 export default function Dashboard() {
   const { user, signOut, isLoading } = useSimpleAuth()
@@ -222,6 +223,12 @@ export default function Dashboard() {
     )
   }
 
+  // Render staff-specific dashboard for staff users
+  if (user.role === 'staff') {
+    return <StaffDashboard />
+  }
+
+  // Render resident/admin dashboard for non-staff users
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       {/* Header */}

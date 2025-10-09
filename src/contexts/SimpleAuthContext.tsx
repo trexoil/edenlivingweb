@@ -80,8 +80,11 @@ export function SimpleAuthProvider({ children }: { children: React.ReactNode }) 
             router.push('/dashboard')
           }
         } else {
-          // Redirect unauthenticated users to login (except if already on auth pages)
-          if (!currentPath.startsWith('/login') && !currentPath.startsWith('/register')) {
+          // Redirect unauthenticated users to login (except if already on auth pages, landing page, or public display)
+          if (!currentPath.startsWith('/login') &&
+              !currentPath.startsWith('/register') &&
+              !currentPath.startsWith('/display') &&
+              currentPath !== '/') {
             console.log('SimpleAuthContext: Redirecting unauthenticated user to /login')
             router.push('/login')
           }
@@ -447,6 +450,15 @@ export function SimpleAuthProvider({ children }: { children: React.ReactNode }) 
 
     if (error) {
       throw error
+    }
+
+    // After successful sign-in, refresh the session to get updated JWT with custom claims
+    if (data.session) {
+      console.log('signIn: Refreshing session to get updated JWT with custom claims...')
+      await supabase.auth.refreshSession()
+
+      // Small delay to ensure the refresh completes
+      await new Promise(resolve => setTimeout(resolve, 500))
     }
 
     // After successful sign-in, fetch profile and update global auth state

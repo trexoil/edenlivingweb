@@ -1,20 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { ServiceRequest } from '@/types/database'
+import { ServiceRequest, Department } from '@/types/database'
+import { EmailNotificationService } from '@/lib/notifications/email'
+import { estimateServiceCost } from '@/lib/invoicing/generator'
+import { sendPushToTokens, getDepartmentTokens } from '@/lib/notifications/push-server'
+import { v4 as uuidv4 } from 'uuid'
+
+const emailService = new EmailNotificationService()
+const AUTO_APPROVE_THRESHOLD = 500 // RM 500 available credit
+
+// Department mapping for service types
+const SERVICE_DEPARTMENT_MAPPING = {
+  meal: 'Kitchen',
+  laundry: 'Housekeeping', 
+  housekeeping: 'Housekeeping',
+  transportation: 'Transportation',
+  maintenance: 'Maintenance',
+  home_care: 'Care Services',
+  medical: 'Medical'
+}
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    console.log('Service requests API called')
-
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-    console.log('Auth check:', { user: user?.id, error: authError?.message })
-
     if (authError || !user) {
-      console.log('Authentication failed:', authError?.message)
-      return NextResponse.json({ error: 'Unauthorized', details: authError?.message }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     // Get user profile to check role
@@ -24,11 +37,8 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
-    console.log('Profile check:', { profile: profile?.role, error: profileError?.message })
-
     if (profileError || !profile) {
-      console.log('Profile not found:', profileError?.message)
-      return NextResponse.json({ error: 'Profile not found', details: profileError?.message }, { status: 404 })
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
     // Parse query parameters
@@ -36,6 +46,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const type = searchParams.get('type')
     const priority = searchParams.get('priority')
+    const department = searchParams.get('department')
 
     // Build query based on user role
     let query = supabase
@@ -50,7 +61,10 @@ export async function GET(request: NextRequest) {
     // Apply role-based filtering
     if (profile.role === 'resident') {
       query = query.eq('resident_id', user.id)
-    } else if (profile.role === 'site_admin' || profile.role === 'admin' || profile.role === 'staff') {
+    } else if (profile.role === 'staff' && profile.department) {
+      // Staff can only see requests assigned to their department
+      query = query.eq('department_assigned', profile.department)
+    } else if (profile.role === 'site_admin' || profile.role === 'admin') {
       if (profile.site_id) {
         query = query.eq('site_id', profile.site_id)
       }
@@ -58,25 +72,12 @@ export async function GET(request: NextRequest) {
     // Superadmin can see all service requests (no additional filtering)
 
     // Apply filters
-    if (status) {
-      query = query.eq('status', status)
-    }
-    if (type) {
-      query = query.eq('type', type)
-    }
-    if (priority) {
-      query = query.eq('priority', priority)
-    }
-
-    console.log('Executing query for role:', profile.role, 'site_id:', profile.site_id)
+    if (status) query = query.eq('status', status)
+    if (type) query = query.eq('type', type)
+    if (priority) query = query.eq('priority', priority)
+    if (department) query = query.eq('department_assigned', department)
 
     const { data: requests, error: requestsError } = await query
-
-    console.log('Query result:', {
-      requestsCount: requests?.length || 0,
-      error: requestsError?.message,
-      requests: requests?.slice(0, 2) // Log first 2 requests for debugging
-    })
 
     if (requestsError) {
       console.error('Error fetching service requests:', requestsError)
@@ -106,23 +107,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get user profile
-    const { data: profile, error: profileError } = await supabase
+    // Get resident profile (with credit limit info)
+    const { data: resident, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single()
 
-    if (profileError || !profile) {
+    if (profileError || !resident) {
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
     // Only residents can create service requests for themselves
-    if (profile.role !== 'resident') {
+    if (resident.role !== 'resident') {
       return NextResponse.json({ error: 'Only residents can create service requests' }, { status: 403 })
     }
 
-    if (!profile.site_id) {
+    if (!resident.site_id) {
       return NextResponse.json({ error: 'User must be assigned to a site' }, { status: 400 })
     }
 
@@ -160,26 +161,58 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
     }
 
+    // Estimate service cost
+    const estimatedCost = estimateServiceCost(type)
+    
+    // Check credit limit for auto-approval (available credit ≥ RM500)
+    const creditLimit = resident.credit_limit ?? 0
+    const currentBalance = resident.current_balance ?? 0
+    const availableCredit = creditLimit - currentBalance
+
+    const autoApprove = availableCredit >= AUTO_APPROVE_THRESHOLD
+
+    // Determine department assignment
+    const departmentName = SERVICE_DEPARTMENT_MAPPING[type as keyof typeof SERVICE_DEPARTMENT_MAPPING]
+    
+    // Determine initial status
+    let initialStatus = 'pending'
+    if (autoApprove) {
+      initialStatus = 'auto_approved'
+    } else {
+      initialStatus = 'manual_review'
+    }
+
     // Create service request
+    const serviceRequestData = {
+      id: uuidv4(),
+      resident_id: user.id,
+      site_id: resident.site_id,
+      type,
+      title,
+      description,
+      priority,
+      status: initialStatus,
+      scheduled_date,
+      estimated_cost: estimatedCost,
+      department_assigned: departmentName,
+      auto_approved: autoApprove,
+      approval_reason: autoApprove 
+        ? `Auto-approved: Available credit RM${availableCredit.toFixed(2)} >= Service cost RM${estimatedCost.toFixed(2)}`
+        : `Manual review required: Available credit RM${availableCredit.toFixed(2)} < Service cost RM${estimatedCost.toFixed(2)}`,
+      meal_preferences,
+      laundry_instructions,
+      housekeeping_details,
+      transportation_details,
+      maintenance_location,
+      care_requirements,
+      medical_notes,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
     const { data: serviceRequest, error: createError } = await supabase
       .from('service_requests')
-      .insert([{
-        resident_id: user.id,
-        site_id: profile.site_id,
-        type,
-        title,
-        description,
-        priority,
-        status: 'pending',
-        scheduled_date,
-        meal_preferences,
-        laundry_instructions,
-        housekeeping_details,
-        transportation_details,
-        maintenance_location,
-        care_requirements,
-        medical_notes
-      }])
+      .insert([serviceRequestData])
       .select(`
         *,
         resident:profiles!service_requests_resident_id_fkey(id, first_name, last_name, email, unit_number)
@@ -191,24 +224,57 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: createError.message }, { status: 400 })
     }
 
-    // Create notification for site admins
-    const { error: notificationError } = await supabase
-      .from('notifications')
-      .insert([{
-        user_id: user.id, // This will be updated to notify admins in a future enhancement
-        title: 'New Service Request',
-        message: `New ${type} request: ${title}`,
-        type: 'info'
-      }])
+    // Handle post-creation workflow
+    if (autoApprove) {
+      // Auto-approved: notify admin and assign to department
+      await handleAutoApproval(serviceRequest, resident)
 
-    if (notificationError) {
-      console.warn('Failed to create notification:', notificationError)
-      // Don't fail the request if notification creation fails
+      // Send push notification to department
+      try {
+        const tokens = await getDepartmentTokens(supabase as any, departmentName)
+        if (tokens.length > 0) {
+          await sendPushToTokens(
+            tokens,
+            {
+              title: 'New Service Request',
+              body: `${serviceRequest.type}: ${serviceRequest.title}`
+            },
+            { type: 'service_request_assigned', request_id: serviceRequest.id }
+          )
+        }
+      } catch (pushError) {
+        console.warn('Push notification failed:', pushError)
+      }
+    } else {
+      // Manual review required: notify admin only
+      await handleManualReview(serviceRequest, resident)
+
+      // Send push notification to admins
+      try {
+        const adminTokens = await getDepartmentTokens(supabase as any, 'admin')
+        if (adminTokens.length > 0) {
+          await sendPushToTokens(
+            adminTokens,
+            {
+              title: 'Manual Review Required',
+              body: `Service request needs approval: ${serviceRequest.title}`
+            },
+            { type: 'manual_review_required', request_id: serviceRequest.id }
+          )
+        }
+      } catch (pushError) {
+        console.warn('Push notification failed:', pushError)
+      }
     }
+
+    console.log(`Service request ${serviceRequest.id} created with status: ${initialStatus}`)
 
     return NextResponse.json({
       success: true,
-      request: serviceRequest
+      request: serviceRequest,
+      auto_approved: autoApprove,
+      estimated_cost: estimatedCost,
+      available_credit: availableCredit
     })
 
   } catch (error) {
@@ -216,5 +282,74 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       error: 'Internal server error'
     }, { status: 500 })
+  }
+}
+
+/**
+ * Handle auto-approved service request workflow
+ */
+async function handleAutoApproval(serviceRequest: any, resident: any) {
+  const supabase = await createClient()
+  
+  try {
+    // Get admin users for notifications
+    const { data: admins } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('site_id', resident.site_id)
+      .in('role', ['admin', 'site_admin', 'superadmin'])
+    
+    // Get department info
+    const { data: department } = await supabase
+      .from('departments')
+      .select('*')
+      .eq('site_id', resident.site_id)
+      .eq('name', serviceRequest.department_assigned)
+      .single()
+    
+    // Send notifications
+    if (admins && admins.length > 0) {
+      await emailService.sendAdminNotification(serviceRequest, 'auto_approved', admins)
+    }
+    
+    if (department) {
+      await emailService.sendDepartmentNotification(serviceRequest, department, resident)
+    }
+    
+    // Update service request to 'assigned' status for department processing
+    await supabase
+      .from('service_requests')
+      .update({ 
+        status: 'assigned',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', serviceRequest.id)
+      
+  } catch (error) {
+    console.error('Error in auto-approval workflow:', error)
+  }
+}
+
+/**
+ * Handle manual review service request workflow
+ */
+async function handleManualReview(serviceRequest: any, resident: any) {
+  const supabase = await createClient()
+  
+  try {
+    // Get admin users for notifications
+    const { data: admins } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('site_id', resident.site_id)
+      .in('role', ['admin', 'site_admin', 'superadmin'])
+    
+    // Send notification to admins for manual review
+    if (admins && admins.length > 0) {
+      await emailService.sendAdminNotification(serviceRequest, 'manual_review_required', admins)
+    }
+      
+  } catch (error) {
+    console.error('Error in manual review workflow:', error)
   }
 }

@@ -47,7 +47,8 @@ export default function SiteAdminUsersPage() {
     unit_number: '',
     phone_number: '',
     emergency_contact: '',
-    dietary_preferences: ''
+    dietary_preferences: '',
+    department: ''
   })
 
   useEffect(() => {
@@ -339,6 +340,30 @@ export default function SiteAdminUsersPage() {
                   />
                 </div>
               </div>
+
+              {formData.role === 'staff' && (
+                <div>
+                  <Label htmlFor="department">Department *</Label>
+                  <Select value={formData.department} onValueChange={(value) => setFormData(prev => ({ ...prev, department: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="kitchen">Kitchen</SelectItem>
+                      <SelectItem value="housekeeping">Housekeeping</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                      <SelectItem value="laundry">Laundry</SelectItem>
+                      <SelectItem value="transportation">Transportation</SelectItem>
+                      <SelectItem value="medical">Medical</SelectItem>
+                      <SelectItem value="home_care">Home Care</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Required for staff members to access department-specific features
+                  </p>
+                </div>
+              )}
+
               <div>
                 <Label htmlFor="dietary_preferences">Dietary Preferences</Label>
                 <Input
