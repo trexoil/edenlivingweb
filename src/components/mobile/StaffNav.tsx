@@ -23,14 +23,16 @@ export default function StaffNav() {
             </Button>
           </Link>
         )}
-        <Link href="/kitchen" className="flex-1">
-          <Button
-            variant={path.startsWith('/kitchen') ? 'default' : 'outline'}
-            className="w-full"
-          >
-            Kitchen
-          </Button>
-        </Link>
+        {isKitchenStaff && (
+          <Link href="/kitchen" className="flex-1">
+            <Button
+              variant={path.startsWith('/kitchen') ? 'default' : 'outline'}
+              className="w-full"
+            >
+              Kitchen
+            </Button>
+          </Link>
+        )}
       </div>
     </div>
   )

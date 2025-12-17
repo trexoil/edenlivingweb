@@ -9,15 +9,15 @@ import { v4 as uuidv4 } from 'uuid'
 const emailService = new EmailNotificationService()
 const AUTO_APPROVE_THRESHOLD = 500 // RM 500 available credit
 
-// Department mapping for service types
+// Department mapping for service types (lowercase to match staff profile department field)
 const SERVICE_DEPARTMENT_MAPPING = {
-  meal: 'Kitchen',
-  laundry: 'Housekeeping', 
-  housekeeping: 'Housekeeping',
-  transportation: 'Transportation',
-  maintenance: 'Maintenance',
-  home_care: 'Care Services',
-  medical: 'Medical'
+  meal: 'kitchen',
+  laundry: 'housekeeping',
+  housekeeping: 'housekeeping',
+  transportation: 'transportation',
+  maintenance: 'maintenance',
+  home_care: 'medical',
+  medical: 'medical'
 }
 
 export async function GET(request: NextRequest) {
@@ -58,12 +58,29 @@ export async function GET(request: NextRequest) {
       `)
       .order('created_at', { ascending: false })
 
+    // Debug logging
+    console.log('Service requests GET - User:', user.id, 'Role:', profile.role, 'Department:', profile.department, 'Site:', profile.site_id)
+
+    // Apply role-based filtering
     // Apply role-based filtering
     if (profile.role === 'resident') {
       query = query.eq('resident_id', user.id)
-    } else if (profile.role === 'staff' && profile.department) {
+    } else if (profile.role === 'staff') {
       // Staff can only see requests assigned to their department
-      query = query.eq('department_assigned', profile.department)
+      if (profile.department) {
+        console.log('Staff filtering by department:', profile.department)
+        query = query.ilike('department_assigned', profile.department)
+      } else {
+        // Fallback for staff with no department - show nothing
+        console.warn('Staff user has no department assigned:', user.id)
+        // Return empty result immediately to avoid executing query
+        return NextResponse.json({ requests: [] })
+      }
+
+      // Also ensure they only see their site
+      if (profile.site_id) {
+        query = query.eq('site_id', profile.site_id)
+      }
     } else if (profile.role === 'site_admin' || profile.role === 'admin') {
       if (profile.site_id) {
         query = query.eq('site_id', profile.site_id)
@@ -75,7 +92,10 @@ export async function GET(request: NextRequest) {
     if (status) query = query.eq('status', status)
     if (type) query = query.eq('type', type)
     if (priority) query = query.eq('priority', priority)
-    if (department) query = query.eq('department_assigned', department)
+    if (department) {
+      console.log('Additional department filter:', department)
+      query = query.ilike('department_assigned', department)
+    }
 
     const { data: requests, error: requestsError } = await query
 
@@ -91,8 +111,8 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Get service requests API error:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error' 
+    return NextResponse.json({
+      error: 'Internal server error'
     }, { status: 500 })
   }
 }
@@ -100,7 +120,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -129,10 +149,10 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json()
-    const { 
-      type, 
-      title, 
-      description, 
+    const {
+      type,
+      title,
+      description,
       priority = 'medium',
       scheduled_date,
       meal_preferences,
@@ -163,7 +183,7 @@ export async function POST(request: NextRequest) {
 
     // Estimate service cost
     const estimatedCost = estimateServiceCost(type)
-    
+
     // Check credit limit for auto-approval (available credit ≥ RM500)
     const creditLimit = resident.credit_limit ?? 0
     const currentBalance = resident.current_balance ?? 0
@@ -173,7 +193,7 @@ export async function POST(request: NextRequest) {
 
     // Determine department assignment
     const departmentName = SERVICE_DEPARTMENT_MAPPING[type as keyof typeof SERVICE_DEPARTMENT_MAPPING]
-    
+
     // Determine initial status
     let initialStatus = 'pending'
     if (autoApprove) {
@@ -196,7 +216,7 @@ export async function POST(request: NextRequest) {
       estimated_cost: estimatedCost,
       department_assigned: departmentName,
       auto_approved: autoApprove,
-      approval_reason: autoApprove 
+      approval_reason: autoApprove
         ? `Auto-approved: Available credit RM${availableCredit.toFixed(2)} >= Service cost RM${estimatedCost.toFixed(2)}`
         : `Manual review required: Available credit RM${availableCredit.toFixed(2)} < Service cost RM${estimatedCost.toFixed(2)}`,
       meal_preferences,
@@ -290,7 +310,7 @@ export async function POST(request: NextRequest) {
  */
 async function handleAutoApproval(serviceRequest: any, resident: any) {
   const supabase = await createClient()
-  
+
   try {
     // Get admin users for notifications
     const { data: admins } = await supabase
@@ -298,7 +318,7 @@ async function handleAutoApproval(serviceRequest: any, resident: any) {
       .select('*')
       .eq('site_id', resident.site_id)
       .in('role', ['admin', 'site_admin', 'superadmin'])
-    
+
     // Get department info
     const { data: department } = await supabase
       .from('departments')
@@ -306,25 +326,25 @@ async function handleAutoApproval(serviceRequest: any, resident: any) {
       .eq('site_id', resident.site_id)
       .eq('name', serviceRequest.department_assigned)
       .single()
-    
+
     // Send notifications
     if (admins && admins.length > 0) {
       await emailService.sendAdminNotification(serviceRequest, 'auto_approved', admins)
     }
-    
+
     if (department) {
       await emailService.sendDepartmentNotification(serviceRequest, department, resident)
     }
-    
+
     // Update service request to 'assigned' status for department processing
     await supabase
       .from('service_requests')
-      .update({ 
+      .update({
         status: 'assigned',
         updated_at: new Date().toISOString()
       })
       .eq('id', serviceRequest.id)
-      
+
   } catch (error) {
     console.error('Error in auto-approval workflow:', error)
   }
@@ -335,7 +355,7 @@ async function handleAutoApproval(serviceRequest: any, resident: any) {
  */
 async function handleManualReview(serviceRequest: any, resident: any) {
   const supabase = await createClient()
-  
+
   try {
     // Get admin users for notifications
     const { data: admins } = await supabase
@@ -343,12 +363,12 @@ async function handleManualReview(serviceRequest: any, resident: any) {
       .select('*')
       .eq('site_id', resident.site_id)
       .in('role', ['admin', 'site_admin', 'superadmin'])
-    
+
     // Send notification to admins for manual review
     if (admins && admins.length > 0) {
       await emailService.sendAdminNotification(serviceRequest, 'manual_review_required', admins)
     }
-      
+
   } catch (error) {
     console.error('Error in manual review workflow:', error)
   }

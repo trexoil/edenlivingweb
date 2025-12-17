@@ -11,6 +11,7 @@ import { ServiceRequest } from '@/types/database'
 import { useSimpleAuth } from '@/contexts/SimpleAuthContext'
 
 interface DepartmentStats {
+  pending: number
   assigned: number
   processing: number
   in_progress: number
@@ -24,7 +25,7 @@ export default function DepartmentDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [priorityFilter, setPriorityFilter] = useState<string>('all')
   const [updating, setUpdating] = useState<string | null>(null)
-  const [stats, setStats] = useState<DepartmentStats>({ assigned: 0, processing: 0, in_progress: 0, completed: 0 })
+  const [stats, setStats] = useState<DepartmentStats>({ pending: 0, assigned: 0, processing: 0, in_progress: 0, completed: 0 })
 
   useEffect(() => {
     if (user?.department) {
@@ -37,30 +38,31 @@ export default function DepartmentDashboard() {
 
     try {
       setLoading(true)
-      
+
       const params = new URLSearchParams({ department: user.department })
       const response = await fetch(`/api/service-requests?${params}`)
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch requests')
       }
-      
+
       const data = await response.json()
       setRequests(data.requests || [])
-      
+
       // Calculate stats
       const newStats = data.requests.reduce(
         (acc: DepartmentStats, req: ServiceRequest) => {
-          if (req.status === 'assigned') acc.assigned++
+          if (req.status === 'pending') acc.pending++
+          else if (req.status === 'assigned') acc.assigned++
           else if (req.status === 'processing') acc.processing++
           else if (req.status === 'in_progress') acc.in_progress++
           else if (req.status === 'completed') acc.completed++
           return acc
         },
-        { assigned: 0, processing: 0, in_progress: 0, completed: 0 }
+        { pending: 0, assigned: 0, processing: 0, in_progress: 0, completed: 0 }
       )
       setStats(newStats)
-      
+
     } catch (error) {
       console.error('Error fetching department requests:', error)
       toast.error('Failed to load service requests')
@@ -71,32 +73,32 @@ export default function DepartmentDashboard() {
 
   const updateRequestStatus = async (requestId: string, newStatus: string) => {
     setUpdating(requestId)
-    
+
     try {
       const response = await fetch(`/api/service-requests/${requestId}/update-status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       })
-      
+
       if (!response.ok) {
         throw new Error('Failed to update request')
       }
-      
+
       // Update local state
-      setRequests(prev => 
-        prev.map(req => 
-          req.id === requestId 
+      setRequests(prev =>
+        prev.map(req =>
+          req.id === requestId
             ? { ...req, status: newStatus as any, updated_at: new Date().toISOString() }
             : req
         )
       )
-      
+
       // Update stats
       await fetchDepartmentRequests()
-      
+
       toast.success(`Request status updated to ${newStatus}`)
-      
+
     } catch (error) {
       console.error('Error updating request status:', error)
       toast.error('Failed to update request status')
@@ -107,6 +109,8 @@ export default function DepartmentDashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'pending':
+        return 'bg-orange-500'
       case 'assigned':
         return 'bg-blue-500'
       case 'processing':
@@ -137,6 +141,8 @@ export default function DepartmentDashboard() {
 
   const getAvailableActions = (status: string) => {
     switch (status) {
+      case 'pending':
+        return [{ value: 'assigned', label: 'Accept Request' }]
       case 'assigned':
         return [{ value: 'processing', label: 'Start Processing' }]
       case 'processing':
@@ -197,7 +203,17 @@ export default function DepartmentDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+              <span className="text-sm font-medium">Pending</span>
+            </div>
+            <p className="text-2xl font-bold mt-2">{stats.pending}</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -207,7 +223,7 @@ export default function DepartmentDashboard() {
             <p className="text-2xl font-bold mt-2">{stats.assigned}</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -217,7 +233,7 @@ export default function DepartmentDashboard() {
             <p className="text-2xl font-bold mt-2">{stats.processing}</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -227,7 +243,7 @@ export default function DepartmentDashboard() {
             <p className="text-2xl font-bold mt-2">{stats.in_progress}</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -247,6 +263,7 @@ export default function DepartmentDashboard() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="assigned">Assigned</SelectItem>
             <SelectItem value="processing">Processing</SelectItem>
             <SelectItem value="in_progress">In Progress</SelectItem>
@@ -295,17 +312,17 @@ export default function DepartmentDashboard() {
                       <User className="w-4 h-4" />
                       <span>{request.resident?.first_name} {request.resident?.last_name}</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4" />
                       <span>Unit {request.resident?.unit_number || 'N/A'}</span>
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4" />
                       <span>{new Date(request.created_at).toLocaleDateString()}</span>
                     </div>
-                    
+
                     {request.estimated_cost && (
                       <div className="flex items-center gap-2">
                         <span className="font-medium">RM{request.estimated_cost.toFixed(2)}</span>
@@ -340,7 +357,7 @@ export default function DepartmentDashboard() {
                       {action.label}
                     </Button>
                   ))}
-                  
+
                   {request.status === 'completed' && (
                     <Badge variant="secondary" className="text-xs">
                       Completed

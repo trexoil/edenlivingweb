@@ -21,7 +21,19 @@ export interface Profile {
   updated_at: string
 }
 
-export type ServiceRequestType = 
+export interface Vehicle {
+  id: string
+  resident_id: string
+  plate_number: string
+  type: 'resident' | 'visitor'
+  status: 'active' | 'inactive'
+  valid_from?: string
+  valid_until?: string
+  created_at: string
+  updated_at: string
+}
+
+export type ServiceRequestType =
   | 'meal'
   | 'laundry'
   | 'housekeeping'
@@ -30,7 +42,7 @@ export type ServiceRequestType =
   | 'home_care'
   | 'medical'
 
-export type ServiceRequestStatus = 
+export type ServiceRequestStatus =
   | 'pending'           // Initial submission
   | 'auto_approved'     // Approved by system (credit available)
   | 'manual_review'     // Requires admin review (insufficient credit)
@@ -55,7 +67,7 @@ export interface ServiceRequest {
   assigned_to?: string
   created_at: string
   updated_at: string
-  
+
   // Enhanced workflow fields
   department_assigned?: string      // Which department handles this
   assigned_staff_id?: string        // Specific staff member
@@ -68,8 +80,8 @@ export interface ServiceRequest {
   qr_start_scanned_at?: string     // When service started
   qr_completion_scanned_at?: string // When service completed
   invoice_id?: string              // Generated invoice reference
-  
-  // Type-specific fields
+
+  // Type-specific fields (legacy)
   meal_preferences?: string
   laundry_instructions?: string
   housekeeping_details?: string
@@ -77,7 +89,90 @@ export interface ServiceRequest {
   maintenance_location?: string
   care_requirements?: string
   medical_notes?: string
+
+  // Enhanced metadata for structured service data
+  metadata?: ServiceRequestMetadata
 }
+
+// Service Pricing
+export interface ServicePricing {
+  id: string
+  site_id?: string
+  service_type: ServiceRequestType
+  item_code: string
+  item_name: string
+  description?: string
+  unit: string
+  price: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+// Metadata types for each service type
+export interface HousekeepingMetadata {
+  duration_type: 'hourly' | 'half_day' | 'full_day'
+  hours?: number
+  time_slot: 'morning' | 'afternoon' | 'flexible'
+  areas: string[]
+  add_ons: string[]
+  preferred_date: string
+}
+
+export interface TransportationMetadata {
+  destination_type: string
+  custom_destination?: string
+  pickup_location: string
+  appointment_time: string
+  return_trip: boolean
+  passengers: number
+  wheelchair_required: boolean
+  purpose?: string
+}
+
+export interface LaundryMetadata {
+  service_type: 'wash_fold' | 'dry_clean' | 'iron'
+  estimated_weight?: number
+  item_count?: number
+  express: boolean
+  pickup_time: string
+  special_instructions?: string
+}
+
+export interface MaintenanceMetadata {
+  category: 'plumbing' | 'electrical' | 'aircon' | 'general'
+  location_in_unit: string
+  issue_description: string
+  severity: 'minor' | 'moderate' | 'urgent'
+  preferred_date: string
+  photo_urls?: string[]
+}
+
+export interface HomeCareMetadata {
+  care_type: 'companion' | 'personal' | 'meal_assist' | 'mobility' | 'night'
+  duration_hours: number
+  preferred_date: string
+  time_slot: 'morning' | 'afternoon' | 'evening' | 'night'
+  special_requirements?: string
+  mobility_aids?: string[]
+}
+
+export interface MedicalMetadata {
+  service_type: 'nurse_visit' | 'physio' | 'checkup' | 'medication' | 'wound_care'
+  preferred_date: string
+  preferred_time: string
+  medical_conditions?: string
+  current_medications?: string
+  special_instructions?: string
+}
+
+export type ServiceRequestMetadata =
+  | HousekeepingMetadata
+  | TransportationMetadata
+  | LaundryMetadata
+  | MaintenanceMetadata
+  | HomeCareMetadata
+  | MedicalMetadata
 
 export interface Announcement {
   id: string

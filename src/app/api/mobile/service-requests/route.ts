@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     // Get user profile to check role
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, site_id')
+      .select('role, site_id, department')
       .eq('id', user.id)
       .single()
 
@@ -120,8 +120,25 @@ export async function GET(request: NextRequest) {
     // Filter based on user role
     if (profile.role === 'resident') {
       query = query.eq('resident_id', user.id)
-    } else if (profile.role === 'site_admin' || profile.role === 'staff') {
-      // Site admin and staff can see requests for their site
+    } else if (profile.role === 'staff') {
+      // Staff can only see requests for their department
+      if (profile.department) {
+        query = query.ilike('department_assigned', profile.department)
+      } else {
+        // Staff without department should see nothing or get an error
+        console.warn('Staff user has no department assigned', user.id)
+        return NextResponse.json({
+          success: true,
+          data: [],
+          pagination: { page: 1, limit, total: 0, totalPages: 0 }
+        })
+      }
+      // Also filter by site just in case
+      if (profile.site_id) {
+        query = query.eq('site_id', profile.site_id)
+      }
+    } else if (profile.role === 'site_admin') {
+      // Site admin can see requests for their site
       if (profile.site_id) {
         query = query.eq('site_id', profile.site_id)
       }
@@ -163,6 +180,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+
+// Department mapping for service types (lowercase to match staff profile department field)
+const SERVICE_DEPARTMENT_MAPPING = {
+  meal: 'kitchen',
+  laundry: 'housekeeping',
+  housekeeping: 'housekeeping',
+  transportation: 'transportation',
+  maintenance: 'maintenance',
+  home_care: 'medical',
+  medical: 'medical'
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('Mobile service requests POST - Starting')
@@ -186,6 +215,10 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         resident_id: 'demo-resident-id',
         site_id: '00000000-0000-0000-0000-000000000001',
+        scheduled_date: requestData.scheduled_date,
+        metadata: requestData.metadata || {},
+        estimated_cost: requestData.estimated_cost || 0,
+        department_assigned: SERVICE_DEPARTMENT_MAPPING[requestData.type as keyof typeof SERVICE_DEPARTMENT_MAPPING],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         resident: {
@@ -222,6 +255,12 @@ export async function POST(request: NextRequest) {
       .eq('id', user.id)
       .single()
 
+    // Determine department assignment
+    const departmentName = SERVICE_DEPARTMENT_MAPPING[requestData.type as keyof typeof SERVICE_DEPARTMENT_MAPPING]
+
+    console.log('Mobile POST - Type:', requestData.type)
+    console.log('Mobile POST - Mapped Department:', departmentName)
+
     // Create service request
     const { data: serviceRequest, error } = await supabase
       .from('service_requests')
@@ -230,6 +269,7 @@ export async function POST(request: NextRequest) {
         resident_id: user.id,
         site_id: profile?.site_id,
         status: 'pending',
+        department_assigned: departmentName,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])

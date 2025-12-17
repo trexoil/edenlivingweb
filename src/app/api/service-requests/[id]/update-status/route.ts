@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const supabase = await createClient()
-    
+
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -34,18 +36,22 @@ export async function PATCH(
     const { data: serviceRequest, error: requestError } = await supabase
       .from('service_requests')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (requestError || !serviceRequest) {
       return NextResponse.json({ error: 'Service request not found' }, { status: 404 })
     }
 
-    // Check if staff can update this request (department match)
-    if (profile.role === 'staff' && profile.department !== serviceRequest.department_assigned) {
-      return NextResponse.json({ 
-        error: 'You can only update requests assigned to your department' 
-      }, { status: 403 })
+    // Check if staff can update this request (department match - case insensitive)
+    if (profile.role === 'staff') {
+      const staffDept = (profile.department || '').toLowerCase()
+      const requestDept = (serviceRequest.department_assigned || '').toLowerCase()
+      if (staffDept !== requestDept) {
+        return NextResponse.json({
+          error: 'You can only update requests assigned to your department'
+        }, { status: 403 })
+      }
     }
 
     // Parse request body
@@ -54,7 +60,7 @@ export async function PATCH(
 
     // Validate status
     const validStatuses = [
-      'pending', 'auto_approved', 'manual_review', 'assigned', 
+      'pending', 'auto_approved', 'manual_review', 'assigned',
       'processing', 'in_progress', 'awaiting_completion', 'completed', 'invoiced', 'cancelled'
     ]
 
@@ -77,24 +83,24 @@ export async function PATCH(
       updateData.completed_date = new Date().toISOString()
     }
 
-    // Update service request
-    const { data: updatedRequest, error: updateError } = await supabase
+    // Use admin client for update to bypass RLS (permission already validated above)
+    const adminClient = createAdminClient()
+
+    console.log('Attempting update with adminClient:', { id, updateData })
+
+    const { data: updatedRequest, error: updateError } = await adminClient
       .from('service_requests')
       .update(updateData)
-      .eq('id', params.id)
-      .select(`
-        *,
-        resident:profiles!service_requests_resident_id_fkey(id, first_name, last_name, email, unit_number),
-        assigned_staff:profiles!service_requests_assigned_to_fkey(id, first_name, last_name, email)
-      `)
+      .eq('id', id)
+      .select('*')
       .single()
 
     if (updateError) {
-      console.error('Error updating service request:', updateError)
+      console.error('Error updating service request:', JSON.stringify(updateError, null, 2))
       return NextResponse.json({ error: updateError.message }, { status: 400 })
     }
 
-    console.log(`Service request ${params.id} updated to status: ${status} by ${profile.email}`)
+    console.log(`Service request ${id} updated to status: ${status} by ${profile.email}`)
 
     return NextResponse.json({
       success: true,

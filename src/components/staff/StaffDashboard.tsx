@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
 import KitchenDashboard from '@/components/restaurant/KitchenDashboard'
+import DepartmentDashboard from '@/components/department/DepartmentDashboard'
 
 export default function StaffDashboard() {
   const { user, signOut } = useSimpleAuth()
@@ -45,8 +46,8 @@ export default function StaffDashboard() {
             </div>
 
             {/* Sign Out Button */}
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               onClick={handleSignOut}
               className="text-gray-600 hover:text-red-500 hover:bg-red-50"
@@ -70,8 +71,8 @@ export default function StaffDashboard() {
                 <Badge variant="secondary" className="text-xs">
                   {user.role === 'staff' ? 'Staff' : user.role}
                 </Badge>
-                <Badge 
-                  variant="outline" 
+                <Badge
+                  variant="outline"
                   className="text-xs bg-blue-50 text-blue-700 border-blue-200"
                 >
                   {departmentName}
@@ -84,6 +85,29 @@ export default function StaffDashboard() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
+        {/* Quick Access Card - Scanner at Top */}
+        <div className="max-w-screen-lg mx-auto mb-6">
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-gray-900">Need to scan a QR code?</h4>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Use the scanner to update service status
+                  </p>
+                </div>
+                <Button
+                  variant="default"
+                  onClick={() => router.push('/staff/scanner')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Open Scanner
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Department-Specific Dashboard */}
         <div className="max-w-screen-lg mx-auto">
           {isKitchenStaff ? (
@@ -97,53 +121,8 @@ export default function StaffDashboard() {
               <KitchenDashboard />
             </div>
           ) : (
-            <div>
-              <div className="mb-4">
-                <h3 className="text-2xl font-bold text-gray-900">
-                  {departmentName} Dashboard
-                </h3>
-                <p className="text-gray-600 text-sm mt-1">
-                  Service requests for your department will appear here
-                </p>
-              </div>
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <p className="text-gray-600 mb-4">
-                    Service request management for {departmentName} department
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => router.push('/department')}
-                  >
-                    View Service Requests
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+            <DepartmentDashboard />
           )}
-        </div>
-
-        {/* Quick Access Card */}
-        <div className="max-w-screen-lg mx-auto mt-6">
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-semibold text-gray-900">Need to scan a QR code?</h4>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Use the scanner to update service status
-                  </p>
-                </div>
-                <Button 
-                  variant="default"
-                  onClick={() => router.push('/staff/scanner')}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Open Scanner
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Help Section */}
