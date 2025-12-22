@@ -143,12 +143,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      if (qr_type === "start" && serviceRequest.status !== "pending") {
+      if (qr_type === "start" && !["assigned", "processing"].includes(serviceRequest.status)) {
         return NextResponse.json(
           {
             success: false,
 
-            error: "Can only generate start QR for pending requests",
+            error: "Can only generate start QR for assigned or processing requests",
           },
 
           { status: 400 },

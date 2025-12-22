@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { validateQRCode } from '@/lib/qr-code'
 import { generateDraftInvoice } from '@/lib/invoicing/generator'
 import { sendPushToTokens } from '@/lib/notifications/push-server'
@@ -7,7 +8,8 @@ import { sendPushToTokens } from '@/lib/notifications/push-server'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    
+    const supabaseAdmin = createAdminClient()
+
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -119,7 +121,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Mark order as completed
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from('orders')
         .update({
           status: 'completed',
@@ -132,7 +134,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Mark QR code as used
-      await supabase
+      await supabaseAdmin
         .from('service_qr_codes')
         .update({
           is_used: true,
@@ -155,7 +157,7 @@ export async function POST(request: NextRequest) {
           description,
           status: 'draft',
           created_by: staff.id,
-          due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString(),
+          due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -204,8 +206,8 @@ export async function POST(request: NextRequest) {
 
     // Check if staff belongs to the same department as the request
     if (staff.role === 'staff' && staff.department !== serviceRequest.department_assigned) {
-      return NextResponse.json({ 
-        error: 'You can only scan QR codes for your department' 
+      return NextResponse.json({
+        error: 'You can only scan QR codes for your department'
       }, { status: 403 })
     }
 
@@ -218,29 +220,29 @@ export async function POST(request: NextRequest) {
     if (qrCodeData.qrType === 'start') {
       // Start service - update status to in_progress
       if (!['assigned', 'processing'].includes(serviceRequest.status)) {
-        return NextResponse.json({ 
-          error: 'Service must be assigned or processing to start' 
+        return NextResponse.json({
+          error: 'Service must be assigned or processing to start'
         }, { status: 400 })
       }
-      
+
       newStatus = 'in_progress'
       updateData.status = newStatus
       updateData.qr_start_scanned_at = new Date().toISOString()
       updateData.assigned_staff_id = staff.id
-      
+
     } else if (qrCodeData.qrType === 'completion') {
       // Complete service - update status to completed
       if (serviceRequest.status !== 'in_progress') {
-        return NextResponse.json({ 
-          error: 'Service must be in progress to complete' 
+        return NextResponse.json({
+          error: 'Service must be in progress to complete'
         }, { status: 400 })
       }
-      
+
       newStatus = 'completed'
       updateData.status = newStatus
       updateData.qr_completion_scanned_at = new Date().toISOString()
       updateData.completed_date = new Date().toISOString()
-      
+
       // Set actual cost if not already set
       if (!serviceRequest.actual_cost) {
         updateData.actual_cost = serviceRequest.estimated_cost
@@ -248,7 +250,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update service request status
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('service_requests')
       .update(updateData)
       .eq('id', qrCodeData.serviceRequestId)
@@ -259,7 +261,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark QR code as used
-    await supabase
+    await supabaseAdmin
       .from('service_qr_codes')
       .update({
         is_used: true,
