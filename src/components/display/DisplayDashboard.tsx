@@ -89,6 +89,14 @@ export default function DisplayDashboard({ department, onChangeDepartment }: Dis
   // Status color mapping
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'pending':
+        return 'bg-orange-500'
+      case 'auto_approved':
+        return 'bg-teal-500'
+      case 'manual_review':
+        return 'bg-amber-500'
+      case 'pending':
+        return 'bg-blue-400'
       case 'submitted':
         return 'bg-blue-500'
       case 'processing':
@@ -142,14 +150,14 @@ export default function DisplayDashboard({ department, onChangeDepartment }: Dis
           </div>
           <div className="text-right">
             <div className="text-4xl font-bold mb-2">
-              {currentTime.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
+              {currentTime.toLocaleTimeString('en-US', {
+                hour: '2-digit',
                 minute: '2-digit',
                 second: '2-digit'
               })}
             </div>
             <div className="text-xl text-gray-300">
-              {currentTime.toLocaleDateString('en-US', { 
+              {currentTime.toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',

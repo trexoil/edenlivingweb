@@ -36,12 +36,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ items: [], error: 'invalid department' }, { status: 400 })
     }
 
+    console.log('[display/requests] Query params:', { department, serviceType, siteId, todayISO })
+
+    // First, let's check ALL requests for this type (for debugging)
+    const { data: allRequests } = await supabase
+      .from('service_requests')
+      .select('id, type, status, created_at')
+      .eq('type', serviceType)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    console.log('[display/requests] All requests for type', serviceType, ':', allRequests)
+
     // Build query for service requests
+    // Include all active statuses so new requests appear immediately
     let query = supabase
       .from('service_requests')
       .select('*')
-      .gte('created_at', todayISO)
-      .in('status', ['assigned', 'processing', 'in_progress'])
+      .in('status', ['pending', 'auto_approved', 'manual_review', 'assigned', 'processing', 'in_progress'])
       .eq('type', serviceType)
       .order('created_at', { ascending: false })
 
@@ -69,7 +81,8 @@ export async function GET(req: NextRequest) {
       created_at: request.created_at
     }))
 
-    return NextResponse.json({ items })
+    console.log('[display/requests] Returning', items.length, 'items')
+    return NextResponse.json({ items, debug: { department, serviceType, allRequestsCount: allRequests?.length || 0 } })
   } catch (e: any) {
     console.error('[display/requests] Error:', e)
     return NextResponse.json({ items: [], error: e?.message ?? 'unavailable' }, { status: 500 })
