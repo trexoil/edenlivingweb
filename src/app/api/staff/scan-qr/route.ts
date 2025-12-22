@@ -227,8 +227,8 @@ export async function POST(request: NextRequest) {
 
       newStatus = 'in_progress'
       updateData.status = newStatus
-      updateData.qr_start_scanned_at = new Date().toISOString()
-      updateData.assigned_staff_id = staff.id
+      updateData.started_at = new Date().toISOString()
+      updateData.assigned_to = staff.id
 
     } else if (qrCodeData.qrType === 'completion') {
       // Complete service - update status to completed
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
 
       newStatus = 'completed'
       updateData.status = newStatus
-      updateData.qr_completion_scanned_at = new Date().toISOString()
+      updateData.completed_at = new Date().toISOString()
       updateData.completed_date = new Date().toISOString()
 
       // Set actual cost if not already set
